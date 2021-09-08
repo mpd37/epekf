@@ -19,19 +19,18 @@ function out = inferKalmanEP2(x, y, m0, S0, FF, GG, Q, R, u)
 % Copyright (C) 2012-2013 by 
 % Marc Deisenroth and Shakir Mohamed
 %
-% Last modified: 2013-07-18
 
 EPiter = 100;
-display = true;
-
 %% Initialization
 
 % Check if there is a control signal
-control = false; dimU = 0;
+control = false;
 if ~isempty(u)
   control = true;
   dimU = size(u,1);
-end;
+else
+  dimU = 0;
+end
 
 d = size(S0,1); % (latent) state dimension
 e = size(y, 1); % dimension of observation
@@ -46,7 +45,7 @@ for i = 1:n+1
   bw(i).mean = zeros(d,1); bw(i).cov = Inf*eye(d); bw(i).s = 1;
   meas(i).mean = zeros(d,1); meas(i).cov = Inf*eye(d); meas(i).s = 1;
   mx{i} = zeros(d,1); vx{i} = 100000*eye(d);
-end;
+end
 
 mx_old = []; vx_old = [];
 
@@ -91,13 +90,13 @@ for iter = 1:EPiter
         fprintf('Forward message: negative variance in posterior marginal ...\n');
         fprintf('Check wether we ended up outside the training data!');
       end
-    end;
+    end
     
     %% ---- Measurement messages
     % compute cavity distribution
     [mu_xup, Sigma_xup ] = gauss_divide(mx{i}, vx{i}, meas(i).mean, meas(i).cov);
     
-    if any(eig(Sigma_xup)<0);
+    if any(eig(Sigma_xup)<0)
       fprintf('break the loop (measurement message)\n'); continue;
     end
     
@@ -108,7 +107,7 @@ for iter = 1:EPiter
     
     % If we have an injective mapping, go via the derivatives
     if d <= e
-      [logZi dlogZidMz dlogZidSz] = gausslik3(mz, sz, y(:,i));
+      [logZi, dlogZidMz, dlogZidSz] = gausslik3(mz, sz, y(:,i));
       dlogZidmu_xup = dlogZidMz*dMzdmu_xup;
       
       dSzdSigma_xup = zeros(e,e,d,d);
@@ -135,8 +134,7 @@ for iter = 1:EPiter
       vx{i} = Sigma_xup - K*Vxz';
       [meas(i).mean, meas(i).cov] = gauss_divide(mx{i}, vx{i}, mu_xup, Sigma_xup);
     end
-  end;
-  
+  end
   
   
   
@@ -150,7 +148,7 @@ for iter = 1:EPiter
     
     if any(eig(Sigma_xback)<0) | any(eig(Sigma_xfwd)<0)
       fprintf('break the loop (backward message)\n'); continue;
-    end;
+    end
     
     % Compute predictive distribution
     if control
@@ -162,8 +160,8 @@ for iter = 1:EPiter
     dMxdmxni = A;
     
     
-    if true
-      [logZi dlogZidMx dlogZidSx] = gausslik3(Mx, Sx + Sigma_xfwd, mu_xfwd);
+    if true % update using gradients
+      [logZi, dlogZidMx, dlogZidSx] = gausslik3(Mx, Sx + Sigma_xfwd, mu_xfwd);
       
       % chain-rule
       %       dlogZidMxni = etprod('2',dlogZidMx(:), '1', dMxdmxni(:,1:d), '12')';
@@ -183,7 +181,7 @@ for iter = 1:EPiter
       [bw(i).mean, bw(i).cov, bw(i).s] ...
       = site_update_gaussian(mu_xback(1:d), Sigma_xback(1:d,1:d), exp(logZi), dlogZidMxni, dlogZidVxni);
     else
-      % Qi's approach (derivative-free)
+      % Qi's approach (derivative-free updates)
       Vxx = Sigma_xback(1:d,1:d)*dMxdmxni(:,1:d)'; % cross-covariance
       J = Vxx(1:d,:)/Sx;
       % correct for error between predicted mean (from cavity distrbution and marginal mean)
@@ -216,11 +214,11 @@ for iter = 1:EPiter
     if (meanCriterion < 1e-6) && (varCriterion < 1e-6)
       fprintf('EP converged after %d iterations \n', iter);
       break;
-    end;
-  end;
+    end
+  end
   mx_old = mx; vx_old = vx;
   
-end;
+end
 
 % Do a check
 tmp = cellfun(@(x)sum(diag(x)<0),vv{end});
