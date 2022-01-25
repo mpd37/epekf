@@ -6,17 +6,17 @@ function out = inferKalmanEP2(x, y, m0, S0, FF, GG, Q, R, u)
 %
 % Input arguments:
 %
-% x     sequence of latent states (if available)
-% y     sequence of observations
-% m0    prior mean over latent state
-% S0    prior covariance over latent state
+% x     sequence of latent states (if available); dimension d
+% y     sequence of observations; dimension e
+% m0    prior mean over latent state; d x 1
+% S0    prior covariance over latent state; d x d
 % FF    function handle to transition model
 % GG    function handle to measurement model
-% Q     covariance matrix of system noise
-% R     covariance matrix of measurement noise
+% Q     covariance matrix of system noise; d x d
+% R     covariance matrix of measurement noise; e x e
 % u     sequence of control signals (if applicable)
 %
-% Copyright (C) 2012-2013 by 
+% Copyright (C) 2012-2022 by 
 % Marc Deisenroth and Shakir Mohamed
 %
 
@@ -100,31 +100,34 @@ for iter = 1:EPiter
       fprintf('break the loop (measurement message)\n'); continue;
     end
     
-    % Compute predictive distr using GP with uncertain inputs
+    % Compute predictive distr 
     [mz, C] = jaccsd(GG, mu_xup);
-    sz = C*Sigma_xup*C' + R;
-    dMzdmu_xup = C;
+    sz = C * Sigma_xup * C' + R;
+    dMzdmu_xup = C; % e x d
     
     % If we have an injective mapping, go via the derivatives
     if d <= e
       [logZi, dlogZidMz, dlogZidSz] = gausslik3(mz, sz, y(:,i));
       dlogZidmu_xup = dlogZidMz*dMzdmu_xup;
       
-      dSzdSigma_xup = zeros(e,e,d,d);
-      for k = 1:d
-        for l = 1:d
-          dSzdSigma_xup(:,:,k,l) = dMzdmu_xup(:,k)*dMzdmu_xup(:,l)'; % assume constant C
-        end
-      end
-      dlogZidSigma_xup = reshape(dlogZidSz(:)'*reshape(dSzdSigma_xup, e*e, d*d), d,d);
+%       dSzdSigma_xup = zeros(e,e,d,d);
+%       for k = 1:d
+%         for l = 1:d
+%           dSzdSigma_xup(:,:,k,l) = dMzdmu_xup(:,k)*dMzdmu_xup(:,l)'; % assume constant C
+%         end
+%       end
+%       dlogZidSigma_xup = reshape(dlogZidSz(:)'*reshape(dSzdSigma_xup, e*e, d*d), d,d);
+      dlogZidSigma_xup = C' * dlogZidSz * C; % d x d; implements the double loop above
       
       
       % Update Marginal
-      [mx{i}, vx{i}] = moment_matching_gaussian(mu_xup, Sigma_xup, dlogZidmu_xup, dlogZidSigma_xup);
+      [mx{i}, vx{i}] = moment_matching_gaussian(mu_xup, Sigma_xup, ...
+          dlogZidmu_xup, dlogZidSigma_xup);
       
       % Update the message using derivatives of logZi
       [meas(i).mean, meas(i).cov, meas(i).s] ...
-        = site_update_gaussian(mu_xup, Sigma_xup, exp(logZi), dlogZidmu_xup, dlogZidSigma_xup);
+        = site_update_gaussian(mu_xup, Sigma_xup, exp(logZi), ...
+            dlogZidmu_xup, dlogZidSigma_xup);
       
     else % follow Yuan Qi's description (no derivatives needed)
       C = dMzdmu_xup';
@@ -164,7 +167,6 @@ for iter = 1:EPiter
       [logZi, dlogZidMx, dlogZidSx] = gausslik3(Mx, Sx + Sigma_xfwd, mu_xfwd);
       
       % chain-rule
-      %       dlogZidMxni = etprod('2',dlogZidMx(:), '1', dMxdmxni(:,1:d), '12')';
       dlogZidMxni = dlogZidMx*dMxdmxni(:,1:d);
       dSxdsxni = zeros(d,d,d,d);
       for k = 1:d
@@ -172,14 +174,15 @@ for iter = 1:EPiter
           dSxdsxni(:,:,k,l) = dMxdmxni(:,k)*dMxdmxni(:,l)';
         end
       end
-      %       dlogZidVxni = etprod('34',dlogZidSx,'12',dSxdsxni,'1234');
       dlogZidVxni = reshape(dlogZidSx(:)'*reshape(dSxdsxni, d*d, d*d),d,d);
       
       % Update Marginal
-      [mx{i}, vx{i}] = moment_matching_gaussian(mu_xback(1:d), Sigma_xback(1:d,1:d), dlogZidMxni, dlogZidVxni);
+      [mx{i}, vx{i}] = moment_matching_gaussian(mu_xback(1:d), ...
+          Sigma_xback(1:d,1:d), dlogZidMxni, dlogZidVxni);
        % Update the backward message
       [bw(i).mean, bw(i).cov, bw(i).s] ...
-      = site_update_gaussian(mu_xback(1:d), Sigma_xback(1:d,1:d), exp(logZi), dlogZidMxni, dlogZidVxni);
+        = site_update_gaussian(mu_xback(1:d), Sigma_xback(1:d,1:d), ...
+            exp(logZi), dlogZidMxni, dlogZidVxni);
     else
       % Qi's approach (derivative-free updates)
       Vxx = Sigma_xback(1:d,1:d)*dMxdmxni(:,1:d)'; % cross-covariance

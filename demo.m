@@ -2,10 +2,9 @@
 %
 % Example: pendulum motion
 %
-% Copyright (C) 2012-2013 by 
+% Copyright (C) 2012-2022 by 
 % Marc Deisenroth and Shakir Mohamed
 %
-% Last modified: 2013-07-18
 
 clear all; close all;
 
