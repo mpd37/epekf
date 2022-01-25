@@ -100,8 +100,8 @@ for iter = 1:EPiter
       fprintf('break the loop (measurement message)\n'); continue;
     end
     
-    % Compute predictive distr 
-    [mz, C] = jaccsd(GG, mu_xup);
+    % Compute predictive distribution
+    [mz, C] = jaccsd(GG, mu_xup); % C: explicit 'linearization' matrix
     sz = C * Sigma_xup * C' + R;
     dMzdmu_xup = C; % e x d
     
@@ -157,9 +157,9 @@ for iter = 1:EPiter
     if control
       [Mx, A] = jaccsd(FF, mu_xback, u(:,i));
     else
-      [Mx, A] = jaccsd(FF, mu_xback); % "exact" prediction
+      [Mx, A] = jaccsd(FF, mu_xback); % mean of forward prediction
     end
-    Sx = A*Sigma_xback*A' + Q;
+    Sx = A*Sigma_xback*A' + Q; % 'forward prediction' (covariance)
     dMxdmxni = A;
     
     
@@ -168,13 +168,14 @@ for iter = 1:EPiter
       
       % chain-rule
       dlogZidMxni = dlogZidMx*dMxdmxni(:,1:d);
-      dSxdsxni = zeros(d,d,d,d);
-      for k = 1:d
-        for l = 1:d
-          dSxdsxni(:,:,k,l) = dMxdmxni(:,k)*dMxdmxni(:,l)';
-        end
-      end
-      dlogZidVxni = reshape(dlogZidSx(:)'*reshape(dSxdsxni, d*d, d*d),d,d);
+%       dSxdsxni = zeros(d,d,d,d);
+%       for k = 1:d
+%         for l = 1:d
+%           dSxdsxni(:,:,k,l) = dMxdmxni(:,k)*dMxdmxni(:,l)';
+%         end
+%       end
+%       dlogZidVxni = reshape(dlogZidSx(:)'*reshape(dSxdsxni, d*d, d*d),d,d);
+      dlogZidVxni = A' * dlogZidSx * A; % implements the code above
       
       % Update Marginal
       [mx{i}, vx{i}] = moment_matching_gaussian(mu_xback(1:d), ...

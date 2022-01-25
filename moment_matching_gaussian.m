@@ -1,4 +1,4 @@
-function [mx vx] = moment_matching_gaussian(mxni, vxni, dlogZidmxni, dlogZidvxni)
+function [mx, vx] = moment_matching_gaussian(mxni, vxni, dlogZidmxni, dlogZidvxni)
 
 
 % EP updates of the moments of the factored distribution
